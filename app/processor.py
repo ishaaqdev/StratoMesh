@@ -1,5 +1,8 @@
+import io
+
 import numpy as np
 import rasterio
+from PIL import Image
 from rasterio.enums import Resampling
 from pathlib import Path
 
@@ -41,6 +44,50 @@ def process_dem(tif_path: Path, viz_size: int = 256, export_size: int = 512):
         "min_elevation": min_elev,
         "max_elevation": max_elev,
     }
+
+
+def generate_texture(data: np.ndarray, min_elev: float, max_elev: float) -> bytes:
+    """Hillshaded terrain colormap texture returned as PNG bytes."""
+    # ── Hillshade (sun from NW at 45 deg — azimuth 315, altitude 45) ─────
+    az  = 315 * np.pi / 180
+    alt = 45  * np.pi / 180
+    cell = 30.0  # 30 m resolution
+
+    dx = np.gradient(data, axis=1)
+    dy = np.gradient(data, axis=0)
+
+    mag = np.sqrt((dx / cell) ** 2 + (dy / cell) ** 2 + 1.0)
+    nx = (-dx / cell) / mag
+    ny = (-dy / cell) / mag
+    nz = 1.0 / mag
+
+    sx = np.cos(alt) * np.sin(az)
+    sy = np.cos(alt) * np.cos(az)
+    sz = np.sin(alt)
+
+    shade = np.clip(nx * sx + ny * sy + nz * sz, 0.0, 1.0)
+
+    # ── Elevation colormap: valley green -> hillside tan -> rocky gray ────
+    norm = (data - min_elev) / max(float(max_elev - min_elev), 1.0)
+
+    t_stops = [0.00, 0.20, 0.42, 0.62, 0.80, 1.00]
+    r_stops = [0.22, 0.38, 0.56, 0.67, 0.60, 0.86]
+    g_stops = [0.42, 0.57, 0.60, 0.56, 0.50, 0.86]
+    b_stops = [0.18, 0.28, 0.32, 0.38, 0.40, 0.86]
+
+    r = np.interp(norm, t_stops, r_stops)
+    g = np.interp(norm, t_stops, g_stops)
+    b = np.interp(norm, t_stops, b_stops)
+    rgb = np.stack([r, g, b], axis=2)
+
+    # Hillshade modulates brightness: shadows at 30%, lit faces at 100%
+    blended = rgb * (0.30 + 0.70 * shade[:, :, np.newaxis])
+    blended = np.clip(blended, 0.0, 1.0)
+
+    img = Image.fromarray((blended * 255).astype(np.uint8), "RGB")
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
 
 
 def generate_obj(data: np.ndarray, min_elev: float, max_elev: float, output_path: Path):

@@ -112,8 +112,16 @@ function setMode(mode) {
   btnSolid.classList.toggle('active',      mode === 'solid');
   btnWireframe.classList.toggle('active',  mode === 'wireframe');
   btnBoth.classList.toggle('active',       mode === 'both');
-  if (solidMesh)  solidMesh.visible  = mode === 'solid' || mode === 'both';
-  if (wireMesh)   wireMesh.visible   = mode === 'wireframe' || mode === 'both';
+
+  if (solidMesh) solidMesh.visible = mode === 'solid' || mode === 'both';
+
+  if (wireMesh) {
+    wireMesh.visible = mode === 'wireframe' || mode === 'both';
+    // Subtle dark grid over texture in Both; clear visible lines in Wireframe-only
+    wireMesh.material.color.set(mode === 'both' ? 0x000000 : 0x999999);
+    wireMesh.material.opacity = mode === 'both' ? 0.12 : 0.75;
+    wireMesh.material.needsUpdate = true;
+  }
 }
 
 // ── Section visibility ────────────────────────────────
@@ -171,40 +179,36 @@ function initScene(data) {
   controls.target.set(0, 0.15, 0);
   controls.update();
 
-  // Lights
-  scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+  // ── Lighting ─────────────────────────────────────────
+  // Sky (pale blue) + ground (warm soil) hemisphere for natural ambient
+  const hemi = new THREE.HemisphereLight(0xa8c8e8, 0x7a5c2e, 0.7);
+  scene.add(hemi);
 
-  const sun = new THREE.DirectionalLight(0xffffff, 1.4);
-  sun.position.set(3, 5, 2);
+  // Sun from NW at ~45 deg — matches hillshade baked into the texture
+  const sun = new THREE.DirectionalLight(0xfff2cc, 2.0);
+  sun.position.set(-3, 4, 3);
   scene.add(sun);
 
-  const fill = new THREE.DirectionalLight(0xffffff, 0.25);
-  fill.position.set(-2, 2, -3);
+  // Cool blue fill from SE to soften shadows
+  const fill = new THREE.DirectionalLight(0xc8d8ff, 0.4);
+  fill.position.set(3, 1, -3);
   scene.add(fill);
 
-  // Build geometry from elevation data
+  // ── Geometry ──────────────────────────────────────────
   const { width, height, elevation_data, min_elevation, max_elevation } = data;
   const elevRange = max_elevation - min_elevation || 1;
 
   const positions = new Float32Array(width * height * 3);
-  const colors    = new Float32Array(width * height * 3);
   const uvs       = new Float32Array(width * height * 2);
 
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const i    = y * width + x;
-      const elev = elevation_data[i];
-      const t    = (elev - min_elevation) / elevRange; // 0..1
+      const t    = (elevation_data[i] - min_elevation) / elevRange;
 
       positions[i * 3 + 0] = (x / (width  - 1)) * 2 - 1;
       positions[i * 3 + 1] = t * 0.8;
       positions[i * 3 + 2] = ((height - 1 - y) / (height - 1)) * 2 - 1;
-
-      // Grayscale vertex colour: dark low, bright high
-      const c = 0.18 + t * 0.82;
-      colors[i * 3]     = c;
-      colors[i * 3 + 1] = c;
-      colors[i * 3 + 2] = c;
 
       uvs[i * 2]     = x / (width  - 1);
       uvs[i * 2 + 1] = 1 - y / (height - 1);
@@ -224,27 +228,40 @@ function initScene(data) {
 
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geo.setAttribute('color',    new THREE.BufferAttribute(colors,    3));
   geo.setAttribute('uv',       new THREE.BufferAttribute(uvs,       2));
   geo.setIndex(indices);
   geo.computeVertexNormals();
 
-  // Solid mesh
-  solidMesh = new THREE.Mesh(
-    geo,
-    new THREE.MeshStandardMaterial({
-      vertexColors: true,
-      roughness: 0.88,
-      metalness: 0.0,
-    })
-  );
+  // ── Solid mesh with terrain texture ───────────────────
+  const mat = new THREE.MeshStandardMaterial({
+    roughness: 0.85,
+    metalness: 0.02,
+  });
+
+  if (data.texture) {
+    const tex = new THREE.Texture();
+    const img = new Image();
+    img.onload = () => {
+      tex.image = img;
+      tex.needsUpdate = true;
+      mat.map = tex;
+      mat.needsUpdate = true;
+    };
+    img.src = 'data:image/png;base64,' + data.texture;
+  }
+
+  solidMesh = new THREE.Mesh(geo, mat);
   scene.add(solidMesh);
 
-  // Wireframe overlay
-  wireMesh = new THREE.Mesh(
-    geo,
-    new THREE.MeshBasicMaterial({ color: 0x3a3a3a, wireframe: true })
-  );
+  // ── Wireframe overlay ─────────────────────────────────
+  const wireMat = new THREE.MeshBasicMaterial({
+    color: 0x888888,
+    wireframe: true,
+    transparent: true,
+    opacity: 0.75,
+  });
+  wireMesh = new THREE.Mesh(geo, wireMat);
+  wireMesh.renderOrder = 1;
   wireMesh.visible = false;
   scene.add(wireMesh);
 

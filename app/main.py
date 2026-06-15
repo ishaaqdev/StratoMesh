@@ -1,3 +1,4 @@
+import base64
 import uuid
 from pathlib import Path
 
@@ -6,7 +7,7 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from processor import generate_obj, process_dem
+from processor import generate_obj, generate_texture, process_dem
 
 app = FastAPI(title="StratoMesh")
 
@@ -38,6 +39,13 @@ async def upload_tif(file: UploadFile = File(...)):
 
         elevation_data = np.round(result["viz_data"].flatten(), 2).tolist()
 
+        texture_png = generate_texture(
+            result["export_data"],
+            result["min_elevation"],
+            result["max_elevation"],
+        )
+        texture_b64 = base64.b64encode(texture_png).decode()
+
         return JSONResponse(
             {
                 "file_id": file_id,
@@ -46,6 +54,7 @@ async def upload_tif(file: UploadFile = File(...)):
                 "min_elevation": result["min_elevation"],
                 "max_elevation": result["max_elevation"],
                 "elevation_data": elevation_data,
+                "texture": texture_b64,
             }
         )
 
