@@ -3,4 +3,5 @@ uvicorn[standard]==0.29.0
 rasterio==1.5.0
 numpy
 Pillow
+httpx
 python-multipart==0.0.9

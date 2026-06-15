@@ -161,37 +161,44 @@ function initScene(data) {
 
   // Scene
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x040404);
+  scene.background = new THREE.Color(0x0a0d14);
 
-  // Camera
+  // Camera — aerial-oblique angle so the surface is the primary view
   camera = new THREE.PerspectiveCamera(45, W / H, 0.001, 200);
-  camera.position.set(0, 1.6, 2.8);
+  camera.position.set(1.2, 2.0, 2.0);
 
-  // Renderer
+  // Renderer with ACES filmic tone mapping for punchy, cinema-quality colour
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setSize(W, H);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.15;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-  // Orbit controls
+  // Orbit controls — clamp so the user can't orbit under the terrain
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.06;
-  controls.target.set(0, 0.15, 0);
+  controls.target.set(0, 0.22, 0);
+  controls.minPolarAngle = 0;
+  controls.maxPolarAngle = Math.PI * 0.72;  // ~130 deg from top
+  controls.minDistance = 0.5;
+  controls.maxDistance = 8;
   controls.update();
 
   // ── Lighting ─────────────────────────────────────────
-  // Sky (pale blue) + ground (warm soil) hemisphere for natural ambient
-  const hemi = new THREE.HemisphereLight(0xa8c8e8, 0x7a5c2e, 0.7);
+  // Hemisphere: bright sky blue above, warm earth below
+  const hemi = new THREE.HemisphereLight(0xc8ddf5, 0x8a7040, 1.1);
   scene.add(hemi);
 
-  // Sun from NW at ~45 deg — matches hillshade baked into the texture
-  const sun = new THREE.DirectionalLight(0xfff2cc, 2.0);
-  sun.position.set(-3, 4, 3);
+  // Primary sun — warm, strong, matches NW hillshade direction in texture
+  const sun = new THREE.DirectionalLight(0xfff8e0, 3.0);
+  sun.position.set(-3, 5, 3);
   scene.add(sun);
 
-  // Cool blue fill from SE to soften shadows
-  const fill = new THREE.DirectionalLight(0xc8d8ff, 0.4);
-  fill.position.set(3, 1, -3);
+  // Cool blue-sky fill from opposite corner to lift the shadows
+  const fill = new THREE.DirectionalLight(0xd0e8ff, 0.7);
+  fill.position.set(4, 2, -4);
   scene.add(fill);
 
   // ── Geometry ──────────────────────────────────────────
@@ -207,7 +214,7 @@ function initScene(data) {
       const t    = (elevation_data[i] - min_elevation) / elevRange;
 
       positions[i * 3 + 0] = (x / (width  - 1)) * 2 - 1;
-      positions[i * 3 + 1] = t * 0.8;
+      positions[i * 3 + 1] = t * 0.42;
       positions[i * 3 + 2] = ((height - 1 - y) / (height - 1)) * 2 - 1;
 
       uvs[i * 2]     = x / (width  - 1);
@@ -222,7 +229,7 @@ function initScene(data) {
       const tr = tl + 1;
       const bl = (y + 1) * width + x;
       const br = bl + 1;
-      indices.push(tl, bl, tr, tr, bl, br);
+      indices.push(tl, tr, bl, tr, br, bl);
     }
   }
 
@@ -234,12 +241,14 @@ function initScene(data) {
 
   // ── Solid mesh with terrain texture ───────────────────
   const mat = new THREE.MeshStandardMaterial({
-    roughness: 0.85,
+    roughness: 0.82,
     metalness: 0.02,
+    side: THREE.FrontSide,
   });
 
   if (data.texture) {
     const tex = new THREE.Texture();
+    tex.colorSpace = THREE.SRGBColorSpace;
     const img = new Image();
     img.onload = () => {
       tex.image = img;
@@ -252,6 +261,15 @@ function initScene(data) {
 
   solidMesh = new THREE.Mesh(geo, mat);
   scene.add(solidMesh);
+
+  // ── Terrain base — solid box so it's never hollow ─────
+  // Sits just below elevation y=0 and fills the underside completely
+  const baseMesh = new THREE.Mesh(
+    new THREE.BoxGeometry(2.02, 0.06, 2.02),
+    new THREE.MeshStandardMaterial({ color: 0x1a1612, roughness: 1.0 })
+  );
+  baseMesh.position.y = -0.03;
+  scene.add(baseMesh);
 
   // ── Wireframe overlay ─────────────────────────────────
   const wireMat = new THREE.MeshBasicMaterial({

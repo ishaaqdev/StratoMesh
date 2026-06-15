@@ -38,12 +38,26 @@ def process_dem(tif_path: Path, viz_size: int = 256, export_size: int = 512):
     viz_raw = np.where(np.isfinite(viz_raw), viz_raw, min_elev)
     export_raw = np.where(np.isfinite(export_raw), export_raw, min_elev)
 
+    # Light Gaussian smooth on the viz grid to reduce 30m DEM spike artifacts
+    viz_raw = _gaussian_blur(viz_raw, sigma=1.2)
+
     return {
         "viz_data": viz_raw,
         "export_data": export_raw,
         "min_elevation": min_elev,
         "max_elevation": max_elev,
     }
+
+
+def _gaussian_blur(data: np.ndarray, sigma: float) -> np.ndarray:
+    """Pure-numpy separable Gaussian blur — no scipy needed."""
+    radius = max(1, int(3 * sigma + 0.5))
+    x = np.arange(-radius, radius + 1, dtype=np.float32)
+    kernel = np.exp(-0.5 * (x / sigma) ** 2)
+    kernel /= kernel.sum()
+    out = np.apply_along_axis(lambda r: np.convolve(r, kernel, mode="same"), 1, data)
+    out = np.apply_along_axis(lambda c: np.convolve(c, kernel, mode="same"), 0, out)
+    return out
 
 
 def generate_texture(data: np.ndarray, min_elev: float, max_elev: float) -> bytes:
@@ -80,8 +94,8 @@ def generate_texture(data: np.ndarray, min_elev: float, max_elev: float) -> byte
     b = np.interp(norm, t_stops, b_stops)
     rgb = np.stack([r, g, b], axis=2)
 
-    # Hillshade modulates brightness: shadows at 30%, lit faces at 100%
-    blended = rgb * (0.30 + 0.70 * shade[:, :, np.newaxis])
+    # Hillshade modulates brightness: shadows at 55%, lit faces at 100%
+    blended = rgb * (0.55 + 0.45 * shade[:, :, np.newaxis])
     blended = np.clip(blended, 0.0, 1.0)
 
     img = Image.fromarray((blended * 255).astype(np.uint8), "RGB")
