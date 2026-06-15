@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StratoMesh</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&family=Roboto:wght@300;400;500&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-inner">
+        <span class="logo">StratoMesh</span>
+        <span class="tagline">DEM to 3D Terrain Visualizer</span>
+      </div>
+    </header>
+
+    <!-- Main -->
+    <main class="main" id="main">
+
+      <!-- Upload -->
+      <section class="panel upload-panel" id="uploadSection">
+        <div class="upload-card">
+          <div class="upload-zone" id="uploadZone">
+            <svg class="upload-icon" width="44" height="44" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            <p class="upload-label">Drop your .tif file here</p>
+            <p class="upload-sub">or click to browse</p>
+            <input type="file" id="fileInput" accept=".tif,.tiff" hidden />
+          </div>
+
+          <div class="file-info" id="fileInfo">
+            <span class="file-name" id="fileName"></span>
+            <button class="btn-text" id="clearBtn">Remove</button>
+          </div>
+
+          <button class="btn-primary" id="processBtn" disabled>Process Terrain</button>
+        </div>
+      </section>
+
+      <!-- Processing -->
+      <section class="panel processing-panel" id="processingSection" style="display:none">
+        <div class="processing-card">
+          <div class="spinner"></div>
+          <p class="processing-label">Processing terrain data</p>
+          <p class="processing-sub">Generating mesh and OBJ export</p>
+        </div>
+      </section>
+
+      <!-- Viewer -->
+      <section class="viewer-panel" id="viewerSection" style="display:none">
+        <div class="viewer-topbar">
+          <div class="meta-row" id="metaRow"></div>
+          <div class="controls-row">
+            <div class="toggle-group">
+              <button class="toggle-btn active" id="btnSolid">Solid</button>
+              <button class="toggle-btn" id="btnWireframe">Wireframe</button>
+              <button class="toggle-btn" id="btnBoth">Both</button>
+            </div>
+            <button class="btn-download" id="downloadBtn">Download OBJ</button>
+            <button class="btn-outline" id="newFileBtn">New File</button>
+          </div>
+        </div>
+
+        <div class="canvas-wrapper" id="canvasWrapper">
+          <canvas id="terrainCanvas"></canvas>
+          <p class="canvas-hint">Drag to rotate &nbsp;&middot;&nbsp; Scroll to zoom &nbsp;&middot;&nbsp; Right-click to pan</p>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.162.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.162.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
